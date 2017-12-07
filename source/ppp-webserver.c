@@ -477,6 +477,43 @@ void enc64(char * in, char * out, int len)
 #define TCP_FLAG_RST (1<<2)
 #define TCP_FLAG_FIN (1<<0)
 
+int nodeIDs[200];
+int arraySize = 0;
+
+int addNode(int nodeID);
+char dest[1024];
+int addNode(int nodeID)
+{
+        nodeIDs[arraySize] = nodeID;
+        arraySize = arraySize + 1;
+
+        char src[1024];
+        memset(src, 0, 1024 );
+        memset(dest, 0, 1024);
+
+        strcpy(dest,  "<html>\
+                    <head><title>A simple Web Server</title></head>\
+                    <body>\
+                        <form method=\"post\">\"");
+        int i;
+        for (i = 0; i < arraySize; i++)
+        {
+          int someInt = nodeIDs[i];
+          char str[12];
+          sprintf(str, "%d", someInt);
+
+          strcat(src, "<button name=\"button\" value=\"SWITCH\" >");
+          strcat(src, str);
+          strcat(src, "</button>\"");
+        }
+
+        strcat(src, "</form>\   </body>\     </html>");
+
+        strcat(dest, src);
+
+        return 0;
+}
+
 /// respond to an HTTP request
 int httpResponse(char * dataStart, int * flags)
 {
@@ -512,10 +549,11 @@ int httpResponse(char * dataStart, int * flags)
         	Led3Toggle();
     	}
 
-        // this is where we insert our web page into the buffer
-        memcpy(n+dataStart,rootWebPage,sizeof(rootWebPage));
-        n = n + sizeof(rootWebPage)-1; // one less than sizeof because we don't count the null byte at the end
+        addNode(arraySize);
 
+        // this is where we insert our web page into the buffer
+        memcpy(n+dataStart,dest,sizeof(dest));
+        n = n + sizeof(dest)-1; // one less than sizeof because we don't count the null byte at the end
     }
 
 #define CONTENTLENGTHSIZE 5
