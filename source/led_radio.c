@@ -27,7 +27,7 @@
 #include "led_radio.h"
 #include "genfsk_defs.h"
 
-#ifdef TX
+#ifdef SERVER
 #include "ppp-webserver.h"
 #endif
 
@@ -147,24 +147,24 @@ void main_task(uint32_t param)
         /*init and provide means to notify the app thread from connectivity tests*/
         GenFskInit(App_NotifyAppThread, App_TimerCallback);
 
-#ifdef TX
+#ifdef SERVER
         initializePpp(mAppSerId);
         waitForPcConnectString();
 #else
-        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
+        // OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
+//        OSA_EventSet(mAppThreadEvt, gCtEvtTxDone_c);
+        Genfsk_Send(gCtEvtSelfEvent_c, 0);
 #endif
     }
     
     osaEventFlags_t mAppThreadEvtFlags = gCtEvtWakeUp_c;
 
     while(1) {
-#ifdef RX
     	if(mAppThreadEvtFlags) {
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
-#endif
     }
 }
 
@@ -176,7 +176,10 @@ void main_task(uint32_t param)
 ********************************************************************************** */
 void App_HandleEvents(osaEventFlags_t flags)
 {
-#ifdef RX
+    if(flags & gCtEvtTxDone_c) {
+//        Genfsk_Send(gCtEvtTxDone_c, count);
+        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
+	}
 	if(flags & gCtEvtRxDone_c) {
 		pEvtAssociatedData = &mAppRxLatestPacket;
 		Genfsk_Receive(gCtEvtRxDone_c, pEvtAssociatedData);
@@ -198,7 +201,6 @@ void App_HandleEvents(osaEventFlags_t flags)
 	if(flags & gCtEvtSelfEvent_c) {
 		Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
 	}
-#endif
 }
 
 /*! *********************************************************************************
@@ -259,7 +261,7 @@ static void App_GenFskEventNotificationCallback(genfskEvent_t event,
 
 static void App_SerialCallback(void* param)
 {
-#ifdef TX
+#ifdef SERVER
 	pppReceiveHandler();
 #endif
     OSA_EventSet(mAppThreadEvt, gCtEvtUart_c);

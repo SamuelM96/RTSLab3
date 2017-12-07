@@ -508,7 +508,7 @@ int httpResponse(char * dataStart, int * flags)
         	static uint16_t ledState = 0;
 
         	ledState = ledState ? 0 : 1;
-        	Genfsk_Send(gCtEvtTxDone_c, NULL, ledState);
+        	Genfsk_Send(gCtEvtTxDone_c, ledState);
         	Led3Toggle();
     	}
 

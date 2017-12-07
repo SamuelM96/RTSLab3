@@ -158,5 +158,5 @@ extern void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc
 /* Genfsk RX handler */
 extern bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue);
 /* Genfsk TX handler */
-extern bool_t Genfsk_Send(ct_event_t evType, void* pAssociatedValue, uint16_t ledState);
+extern bool_t Genfsk_Send(ct_event_t evType, uint16_t data);
 #endif

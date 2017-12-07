@@ -55,25 +55,25 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: LED_Radio.axf
+all: MeshNetwork.axf
 
 # Tool invocations
-LED_Radio.axf: $(OBJS) $(USER_OBJS)
+MeshNetwork.axf: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -L"C:\Users\Samuel Mott\Documents\RTSLab2\LED_Radio\libs" -Xlinker -Map="LED_Radio.map" -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m0plus -mthumb -T MKW41Z512xxx4_connectivity.ld -L ../source -o "LED_Radio.axf" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-eabi-gcc -L"C:\Users\Samuel Mott\Documents\RTSLab3\libs" -Xlinker -Map="MeshNetwork.map" -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m0plus -mthumb -T MKW41Z512xxx4_connectivity.ld -L ../source -o "MeshNetwork.axf" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) LED_Radio.axf
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) MeshNetwork.axf
 	-@echo ' '
 
 post-build:
 	-@echo 'Performing post-build steps'
-	-arm-none-eabi-size "LED_Radio.axf"; # arm-none-eabi-objcopy -v -O binary "LED_Radio.axf" "LED_Radio.bin" ; # checksum -p MKW41Z512xxx4 -d "LED_Radio.bin";
+	-arm-none-eabi-size "MeshNetwork.axf" ; arm-none-eabi-objcopy -v -O binary "MeshNetwork.axf" "MeshNetwork.bin" ; # checksum -p MKW41Z512xxx4 -d "MeshNetwork.bin"
 	-@echo ' '
 
 .PHONY: all clean dependents
