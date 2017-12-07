@@ -33,7 +33,11 @@
 #include "genfsk.h"
 #include "ppp-webserver.h"
 #include "genfsk_defs.h"
+#include "genfsk_interface.h"
 
+#define MAX_PAGE_SIZE 1024
+#define gRadioOpcode1 (0xAB)
+#define gRadioOpcode2 (0xDC)
 
 const static char rootWebPage[] = "\
 <!DOCTYPE html>\
@@ -57,10 +61,26 @@ window.onload=function(){\
 // Serial connection
 uint8_t pc;
 
+uint8_t genfskId;
+
 // the standard hdlc frame start/end character. It's the tilde character "~"
 #define FRAME_7E (0x7e)
 
 pppType ppp; // our global - definitely not thread safe
+
+int nodeIDs[200];
+int arraySize = 0;
+int addNode(int nodeID);
+char dyn_page[MAX_PAGE_SIZE];
+
+
+int addNode(int nodeID)
+{
+	nodeIDs[arraySize] = nodeID;
+    arraySize = arraySize + 1;
+
+    return 0;
+}
 
 /// Initialize the ppp structure and clear the receive buffer
 void pppInitStruct()
@@ -471,47 +491,51 @@ void enc64(char * in, char * out, int len)
     out[j]=0;
 }
 
+void radioRXCallback(uint8_t *pRxBuffer,
+        					uint16_t bufferLength,
+							uint64_t timestamp,
+							uint8_t rssi,
+							uint8_t crcValid)
+{
+	static GENFSK_packet_t gRxPacket;
+	uint16_t u16PacketIndex;
+	uint16_t u16Data;
+	/*map rx buffer to generic fsk packet*/
+	GENFSK_ByteArrayToPacket(genfskId, pRxBuffer, &gRxPacket);
+	if(gRxPacket.payload[4] == gRadioOpcode1 &&
+			gRxPacket.payload[5] == gRadioOpcode2) /* check if packet payload is RADIO type */
+	{
+		u16PacketIndex = ((uint16_t)gRxPacket.payload[0] <<8) + gRxPacket.payload[1];
+	    u16Data = ((uint16_t)gRxPacket.payload[2] <<8) + gRxPacket.payload[3];
+
+	    addNode(u16Data);
+	}
+}
+
 #define TCP_FLAG_ACK (1<<4)
 #define TCP_FLAG_SYN (1<<1)
 #define TCP_FLAG_PSH (1<<3)
 #define TCP_FLAG_RST (1<<2)
 #define TCP_FLAG_FIN (1<<0)
 
-int nodeIDs[200];
-int arraySize = 0;
+void generatePage() {
+	memset(dyn_page, 0, sizeof(dyn_page));
+	strcpy(dyn_page, "<html><head><title>A simple Web Server</title></head><body><form method=\"post\">");
+	int i;
+	for (i = 0; i < arraySize; i++) {
+		int someInt = nodeIDs[i];
+	    char str[12];
+	    sprintf(str, "%d", someInt);
 
-int addNode(int nodeID);
-char dest[1024];
-int addNode(int nodeID)
-{
-        nodeIDs[arraySize] = nodeID;
-        arraySize = arraySize + 1;
+	    strcat(dyn_page, "<button name=\"nodeButton\"");
+	    strcat(dyn_page, " value=\"");
+	    strcat(dyn_page, str);
+	    strcat(dyn_page, "-*-\">");
+	    strcat(dyn_page, str);
+	    strcat(dyn_page, "</button>");
+	}
 
-        char src[1024];
-        memset(src, 0, 1024 );
-        memset(dest, 0, 1024);
-
-        strcpy(dest,  "<html>\
-                    <head><title>A simple Web Server</title></head>\
-                    <body>\
-                        <form method=\"post\">\"");
-        int i;
-        for (i = 0; i < arraySize; i++)
-        {
-          int someInt = nodeIDs[i];
-          char str[12];
-          sprintf(str, "%d", someInt);
-
-          strcat(src, "<button name=\"button\" value=\"SWITCH\" >");
-          strcat(src, str);
-          strcat(src, "</button>\"");
-        }
-
-        strcat(src, "</form>\   </body>\     </html>");
-
-        strcat(dest, src);
-
-        return 0;
+	strcat(dyn_page, "</form></body></html>");
 }
 
 /// respond to an HTTP request
@@ -521,13 +545,17 @@ int httpResponse(char * dataStart, int * flags)
 
     int nHeader; // byte size of HTTP header
     int contentLengthStart; // index where HTML starts
-    int httpGet5, httpGetRoot; // temporary storage of strncmp results
+    int httpGet5, httpGetRoot, httpPostRoot; // temporary storage of strncmp results
+    char *httpPostParamStart, *httpPostParamEnd;
     *flags = TCP_FLAG_ACK | TCP_FLAG_FIN; // the default case is that we close the connection
 
     httpGetRoot = strncmp(dataStart, "GET /", 5);  // found a GET to the root directory
     httpGet5    = dataStart[5]; // the first character in the path name, we use it for special functions later on
+    httpPostRoot = strncmp(dataStart, "POST /", 6);  // found a GET to the root directory
+    httpPostParamStart    = strstr(dataStart, "nodeButton="); // the first character in the path name, we use it for special functions later on
+    httpPostParamEnd = strstr(dataStart, "-*-");
 
-    if((httpGetRoot==0)) {
+    if((httpGetRoot==0) || (httpPostRoot==0)) {
         n=n+sprintf(n+dataStart,"HTTP/1.1 200 OK\r\nServer: Blinky-Radio\r\n"); // 200 OK header
     } else {
         n=n+sprintf(n+dataStart,"HTTP/1.1 404 Not Found\r\nServer: Blinky-Radio\r\n"); // 404 header
@@ -540,20 +568,36 @@ int httpResponse(char * dataStart, int * flags)
     nHeader=n; // size of HTTP header
     
     if( httpGetRoot == 0 ) {
-    	if (httpGet5 == 't') {
-        	// Toggle led
-        	static uint16_t ledState = 0;
+    	static int node = 0;
+        addNode(node++);
 
-        	ledState = ledState ? 0 : 1;
-        	Genfsk_Send(gCtEvtTxDone_c, ledState);
-        	Led3Toggle();
+        generatePage();
+        memcpy(n+dataStart, dyn_page, sizeof(dyn_page));
+        n = n + sizeof(dyn_page)-1;
+//        memcpy(n+dataStart,rootWebPage,sizeof(rootWebPage));
+//        n = n + sizeof(rootWebPage)-1;
+    } else if (httpPostRoot == 0) {
+//    	if (httpGet5 == 't') {
+//        	// Toggle led
+////        	static uint16_t ledState = 0;
+////
+////        	ledState = ledState ? 0 : 1;
+////        	Genfsk_Send(gCtEvtTxDone_c, ledState);
+////        	Led3Toggle();
+//    	}
+    	char nodeID[16];
+    	if (!(httpPostParamStart == NULL || httpPostParamEnd == NULL)) {
+    		int len = httpPostParamEnd - (httpPostParamStart+11);
+//    		len++;
+    		memcpy(nodeID, httpPostParamStart+11, len);
+    		uint16_t u16NodeID = nodeID - '0';
+
     	}
+    	// Insert radio code here
 
-        addNode(arraySize);
-
-        // this is where we insert our web page into the buffer
-        memcpy(n+dataStart,dest,sizeof(dest));
-        n = n + sizeof(dest)-1; // one less than sizeof because we don't count the null byte at the end
+    	generatePage();
+    	memcpy(n+dataStart, dyn_page, sizeof(dyn_page));
+    	n = n + sizeof(dyn_page)-1;
     }
 
 #define CONTENTLENGTHSIZE 5
@@ -606,6 +650,9 @@ void tcpHandler()
         case TCP_FLAG_ACK | TCP_FLAG_PSH:
             if ( (ppp.tcp->flag.All == TCP_FLAG_ACK) && (tcpDataSize == 0)) return; // handle zero-size ack messages by ignoring them
             if ( (strncmp(tcpDataIn, "GET /", 5) == 0) ) { // check for an http GET command
+                flagsOut = TCP_FLAG_ACK | TCP_FLAG_PSH; // we have data, set the PSH flag
+                dataLen = httpResponse(tcpDataOut, &flagsOut); // send an http response
+            } else if ( (strncmp(tcpDataIn, "POST /", 6) == 0) ) { // check for an http GET command
                 flagsOut = TCP_FLAG_ACK | TCP_FLAG_PSH; // we have data, set the PSH flag
                 dataLen = httpResponse(tcpDataOut, &flagsOut); // send an http response
             }
@@ -800,8 +847,9 @@ void waitForPcConnectString()
 }
 
 /// Initialize PPP data structure and set serial port(s) baud rate(s)
-void initializePpp(uint8_t serial)
+void initializePpp(uint8_t serial, uint8_t mAppGenfskId)
 {
+	genfskId = mAppGenfskId;
 	pc = serial;
     pppInitStruct(); // initialize all the variables/properties/buffers
     Serial_Print(pc, "Initialized PPP", gAllowToBlock_d);

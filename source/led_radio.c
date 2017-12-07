@@ -2,6 +2,7 @@
 * Include
 ************************************************************************************/
 
+//#define SERVER
 /* Drv */
 #include "LED.h"
 
@@ -142,29 +143,35 @@ void main_task(uint32_t param)
         mAppTmrId = TMR_AllocateTimer();
 
         /*register callbacks for the generic fsk LL */
+#ifdef SERVER
+        GENFSK_RegisterCallbacks(mAppGenfskId, radioRXCallback, App_GenFskEventNotificationCallback);
+#else
         GENFSK_RegisterCallbacks(mAppGenfskId, App_GenFskReceiveCallback, App_GenFskEventNotificationCallback);
+#endif
 
         /*init and provide means to notify the app thread from connectivity tests*/
         GenFskInit(App_NotifyAppThread, App_TimerCallback);
 
 #ifdef SERVER
-        initializePpp(mAppSerId);
+        initializePpp(mAppSerId, mAppGenfskId);
         waitForPcConnectString();
 #else
         // OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
 //        OSA_EventSet(mAppThreadEvt, gCtEvtTxDone_c);
-        Genfsk_Send(gCtEvtSelfEvent_c, 0);
+        Genfsk_Send(gCtEvtSelfEvent_c, 1234);
 #endif
     }
     
     osaEventFlags_t mAppThreadEvtFlags = gCtEvtWakeUp_c;
 
     while(1) {
+#ifndef SERVER
     	if(mAppThreadEvtFlags) {
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
+#endif
     }
 }
 
