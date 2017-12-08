@@ -2,7 +2,6 @@
 * Include
 ************************************************************************************/
 
-//#define SERVER
 /* Drv */
 #include "LED.h"
 
@@ -35,6 +34,7 @@
 /************************************************************************************
 * Private macros
 ************************************************************************************/
+//#define SERVER
 #define gAppNumberOfTests_d (1)
 #define App_NotifySelf() OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c)
 
@@ -155,8 +155,8 @@ void main_task(uint32_t param)
 #ifdef SERVER
         initializePpp(mAppSerId, mAppGenfskId);
         waitForPcConnectString();
+        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
 #else
-        // OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
 //        OSA_EventSet(mAppThreadEvt, gCtEvtTxDone_c);
         Genfsk_Send(gCtEvtSelfEvent_c, 1234);
 #endif
@@ -165,13 +165,13 @@ void main_task(uint32_t param)
     osaEventFlags_t mAppThreadEvtFlags = gCtEvtWakeUp_c;
 
     while(1) {
-#ifndef SERVER
+//#ifndef SERVER
     	if(mAppThreadEvtFlags) {
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
-#endif
+//#endif
     }
 }
 

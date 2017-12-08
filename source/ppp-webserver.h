@@ -10,6 +10,7 @@ void waitForPppFrame();
 void determinePacketType();
 void sendUdpData();
 extern void radioRXCallback(uint8_t *pRxBuffer, uint16_t bufferLength, uint64_t timestamp, uint8_t rssi, uint8_t crcValid);
+void pppReceiveHandler();
 
 /// PPP header
 typedef struct { // [ff 03 00 21]

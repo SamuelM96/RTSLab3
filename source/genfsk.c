@@ -262,11 +262,10 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 
     	/*restart RX immediately with no timeout*/
             if(bRestartRx) {
-            	Genfsk_Send(gCtEvtTxDone_c, 0);
-//                if(gGenfskSuccess_c != GENFSK_StartRx(mAppGenfskId, gRxBuffer, gGenFskDefaultMaxBufferSize_c + crcConfig.crcSize, 0, 0)) {
-//                    GENFSK_AbortAll();
-//                    Serial_Print(mAppSerId, "\n\rRADIO Rx failed.\r\n\r\n", gAllowToBlock_d);
-//                }
+                if(gGenfskSuccess_c != GENFSK_StartRx(mAppGenfskId, gRxBuffer, gGenFskDefaultMaxBufferSize_c + crcConfig.crcSize, 0, 0)) {
+                    GENFSK_AbortAll();
+                    Serial_Print(mAppSerId, "\n\rRADIO Rx failed.\r\n\r\n", gAllowToBlock_d);
+                }
             }  
         }
 

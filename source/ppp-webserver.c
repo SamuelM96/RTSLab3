@@ -568,8 +568,8 @@ int httpResponse(char * dataStart, int * flags)
     nHeader=n; // size of HTTP header
     
     if( httpGetRoot == 0 ) {
-    	static int node = 0;
-        addNode(node++);
+//    	static int node = 0;
+//        addNode(node++);
 
         generatePage();
         memcpy(n+dataStart, dyn_page, sizeof(dyn_page));
