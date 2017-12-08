@@ -610,11 +610,12 @@ int httpResponse(char * dataStart, int * flags)
         memcpy(n+dataStart, dyn_page, sizeof(dyn_page));
         n = n + sizeof(dyn_page)-1;
     } else if (httpPostRoot == 0) {
-    	char nodeID[3];
+    	char nodeID[4];
     	if (!(httpPostParamStart == NULL || httpPostParamEnd == NULL)) {
     		int len = httpPostParamEnd - (httpPostParamStart+11);
     		memcpy(nodeID, httpPostParamStart+11, len);
-    		uint8_t u8NodeID = nodeID - '0';
+    		nodeID[3] = '\0';
+    		uint8_t u8NodeID = atoi(nodeID);
 
     		Genfsk_Send(0, u8NodeID, MESHMESSAGE_PING);
     	}

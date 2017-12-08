@@ -182,10 +182,10 @@ void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
 /*! *********************************************************************************
 * \brief  Handles the Packet error rate RX test
 ********************************************************************************** */
-bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
+bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue, uint8_t NODEID)
 {
     static uint8_t message;
-    static uint8_t u8PacketIndex;
+    static uint8_t nodeID;
     
     ct_rx_indication_t* pIndicationInfo = NULL;
     uint8_t* pRxBuffer = NULL;
@@ -194,7 +194,7 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
     
     if(radioState != 'R') /* Reset the state machine */
     {
-        u8PacketIndex = 0;
+        nodeID = 0;
         message = 0;
 
         Serial_Print(mAppSerId, "\n\rRADIO Rx Running\r\n\r\n", gAllowToBlock_d);
@@ -220,20 +220,58 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
                 if(payload->opcode1 == gRadioOpcode1 && payload->opcode2 == gRadioOpcode2) /* check if packet payload is RADIO type */
                 {
 
-                    u8PacketIndex = payload->packetID;
+                    nodeID = payload->nodeID;
                     message = payload->message;
+                    Node node = getNode(nodeID);
 
-                    if (message == MESHMESSAGE_ACK) {
-                    	if (addNode(payload->nodeID) == -1) {
-                    		// Code here
-                    	}
+#ifndef SERVER
+                    if (nodeID != NODEID) {
+                    	Genfsk_Send(0, nodeID, message);
                     } else {
-                    	Node node = getNode(payload->nodeID);
-                    	if (message == MESHMESSAGE_PING) {
-                    		node.prevMessageRec = MESHMESSAGE_PING;
-                    		setNode(node);
-                    	}
-                	}
+#endif
+						switch (message) {
+						case MESHMESSAGE_ACK:
+#ifdef SERVER
+							if (addNode(payload->nodeID) == -1) {
+								// Code here
+							}
+#else
+							Genfsk_Send(0, nodeID, message);
+#endif
+							break;
+						case MESHMESSAGE_PING:
+#ifdef SERVER
+							Led3Toggle();
+							node.prevMessageRec = MESHMESSAGE_PING;
+							setNode(node);
+#else
+							Led3Toggle();
+							Genfsk_Send(0, NODEID, MESHMESSAGE_PING);
+#endif
+							break;
+						case MESHMESSAGE_LED:
+#ifdef SERVER
+
+#else
+#endif
+							break;
+						case MESHMESSAGE_IDOK:
+#ifdef SERVER
+#else
+#endif
+							break;
+						case MESHMESSAGE_IDNOTOK:
+#ifdef SERVER
+#else
+#endif
+							break;
+						default:
+							break;
+						}
+#ifndef SERVER
+                    }
+#endif
+
 
                     bRestartRx = TRUE;
                 }

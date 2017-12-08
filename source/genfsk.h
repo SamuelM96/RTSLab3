@@ -142,7 +142,7 @@ typedef void (* pTmrHookNotification) (void*);
 #define gGenFskMaxPayloadLen_c ((1 << gGenFskDefaultLengthFieldSize_c) - 1)
 
 /*test opcode + 2byte packet index + 2byte number of packets for Radio*/
-#define gGenFskMinPayloadLen_c (6) 
+#define gGenFskMinPayloadLen_c (6)
 #define gGenFskDefaultPayloadLen_c (gGenFskMinPayloadLen_c)
 
 #define gGenFskDefaultMaxBufferSize_c (gGenFskDefaultSyncAddrSize_c + 1 + \
@@ -171,7 +171,7 @@ extern uint8_t mAppTmrId;
 extern void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc);
 
 /* Genfsk RX handler */
-extern bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue);
+bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue, uint8_t NODEID);
 /* Genfsk TX handler */
 extern bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message);
 #endif

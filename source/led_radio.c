@@ -2,9 +2,6 @@
 * Include
 ************************************************************************************/
 
-#define SERVER
-#define NODEID 123
-
 /* Drv */
 #include "LED.h"
 
@@ -88,6 +85,8 @@ static ct_rx_indication_t mAppRxLatestPacket;
 /*latest generic fsk event status*/
 static genfskEventStatus_t mAppGenfskStatus;
 
+static uint8_t NODEID;
+
 /*extern GENFSK instance id*/
 extern uint8_t mAppGenfskId;
 /*extern MCU reset api*/
@@ -148,14 +147,14 @@ void main_task(uint32_t param)
         mAppTmrId = TMR_AllocateTimer();
 
         /*register callbacks for the generic fsk LL */
-//#ifdef SERVER
-//        GENFSK_RegisterCallbacks(mAppGenfskId, radioRXCallback, App_GenFskEventNotificationCallback);
-//#else
         GENFSK_RegisterCallbacks(mAppGenfskId, App_GenFskReceiveCallback, App_GenFskEventNotificationCallback);
-//#endif
 
         /*init and provide means to notify the app thread from connectivity tests*/
         GenFskInit(App_NotifyAppThread, App_TimerCallback);
+
+        uint32_t randNum;
+        RNG_GetRandomNo(&randNum);
+        NODEID = (uint8_t)randNum;
 
 #ifdef SERVER
         initializePpp(mAppSerId, mAppGenfskId);
@@ -172,9 +171,9 @@ void main_task(uint32_t param)
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
-#ifdef SERVER
-    	Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
-#endif
+//#ifdef SERVER
+    	Genfsk_Receive(gCtEvtSelfEvent_c, NULL, NODEID);
+//#endif
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
     }
 }
@@ -201,24 +200,24 @@ void App_HandleEvents(osaEventFlags_t flags)
 //		nodeProcessPacket(mAppRxLatestPacket);
 //#endif
 
-		Genfsk_Receive(gCtEvtRxDone_c, pEvtAssociatedData);
+		Genfsk_Receive(gCtEvtRxDone_c, pEvtAssociatedData, NODEID);
 	}
 
 	if(flags & gCtEvtRxFailed_c) {
-		Genfsk_Receive(gCtEvtRxFailed_c, pEvtAssociatedData);
+		Genfsk_Receive(gCtEvtRxFailed_c, pEvtAssociatedData, NODEID);
 	}
 
 	if(flags & gCtEvtSeqTimeout_c) {
-		Genfsk_Receive(gCtEvtSeqTimeout_c, NULL);
+		Genfsk_Receive(gCtEvtSeqTimeout_c, NULL, NODEID);
 	}
 
 	if(flags & gCtEvtTimerExpired_c) {
 		pEvtAssociatedData = NULL;
-		Genfsk_Receive(gCtEvtTimerExpired_c, pEvtAssociatedData);
+		Genfsk_Receive(gCtEvtTimerExpired_c, pEvtAssociatedData, NODEID);
 	}
 
 	if(flags & gCtEvtSelfEvent_c) {
-		Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
+		Genfsk_Receive(gCtEvtSelfEvent_c, NULL, NODEID);
 	}
 }
 
