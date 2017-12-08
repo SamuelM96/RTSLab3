@@ -10,6 +10,8 @@
 #include "genfsk_states.h"
 #include "genfsk_defs.h"
 
+#include "ppp-webserver.h"
+
 /*! *********************************************************************************
 * Public memory declarations
 ********************************************************************************** */
@@ -25,8 +27,8 @@ ct_config_params_t gaConfigParams[5];
 /*! *********************************************************************************
 * Private macros
 ********************************************************************************** */
-#define gRadioOpcode1 (0xAB)
-#define gRadioOpcode2 (0xDC)
+#define gRadioOpcode1 (0xBE)
+#define gRadioOpcode2 (0xEF)
 
 /************************************************************************************
 * Private memory declarations
@@ -182,11 +184,8 @@ void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
 ********************************************************************************** */
 bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 {
-	// static bool_t initialised = false;
-    static int32_t  i32RssiSum;
-    // static uint16_t u16ReceivedPackets;
-    static uint16_t u16Data;  
-    static uint16_t u16PacketIndex;
+    static uint8_t message;
+    static uint8_t u8PacketIndex;
     
     ct_rx_indication_t* pIndicationInfo = NULL;
     uint8_t* pRxBuffer = NULL;
@@ -195,9 +194,8 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
     
     if(radioState != 'R') /* Reset the state machine */
     {
-        u16PacketIndex = 0;
-        u16Data = 0;
-        i32RssiSum = 0;
+        u8PacketIndex = 0;
+        message = 0;
 
         Serial_Print(mAppSerId, "\n\rRADIO Rx Running\r\n\r\n", gAllowToBlock_d);
 
@@ -206,7 +204,6 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
             Serial_Print(mAppSerId, "\n\rRADIO Rx failed.\r\n\r\n", gAllowToBlock_d);
         }
 
-        // initialised = true;
         radioState = 'R';
     }
 
@@ -219,34 +216,18 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
                 
                 /*map rx buffer to generic fsk packet*/
                 GENFSK_ByteArrayToPacket(mAppGenfskId, pRxBuffer, &gRxPacket);
-                if(gRxPacket.payload[4] == gRadioOpcode1 && 
-                   gRxPacket.payload[5] == gRadioOpcode2) /* check if packet payload is RADIO type */
+                MeshProtocol *payload = (MeshProtocol*)gRxPacket.payload;
+                if(payload->opcode1 == gRadioOpcode1 && payload->opcode2 == gRadioOpcode2) /* check if packet payload is RADIO type */
                 {
-                    u16PacketIndex = ((uint16_t)gRxPacket.payload[0] <<8) + gRxPacket.payload[1];
-                    u16Data = ((uint16_t)gRxPacket.payload[2] <<8) + gRxPacket.payload[3];
-                    i32RssiSum += (int8_t)(pIndicationInfo->rssi);
-                    
-                    if (u16Data == 1) {
-                    	Led3On();
-                    } else {
-                    	Led3Off();
-                    }
 
-                    /* print statistics */
-                    int8_t i8TempRssiValue = (int8_t)(pIndicationInfo->rssi);
-                    Serial_Print(mAppSerId, "Packet ", gAllowToBlock_d);
-                    Serial_PrintDec(mAppSerId,(uint32_t)u16PacketIndex);
-                    Serial_Print(mAppSerId, ". LED State: ",gAllowToBlock_d);
-                    Serial_PrintDec(mAppSerId, (uint32_t)u16Data);
-                    Serial_Print(mAppSerId, ". Rssi: ", gAllowToBlock_d);
-                    if(i8TempRssiValue < 0) {
-                    	i8TempRssiValue *= -1;
-                        Serial_Print(mAppSerId, "-", gAllowToBlock_d);
+                    u8PacketIndex = payload->packetID;
+                    message = payload->message;
+                    
+                    if (message == MESHMESSAGE_ACK) {
+                    	if (addNode(payload->nodeID) == -1) {
+                    		// Code here
+                    	}
                     }
-                    Serial_PrintDec(mAppSerId, (uint32_t)i8TempRssiValue);
-                    Serial_Print(mAppSerId, ". Timestamp: ", gAllowToBlock_d);
-                    Serial_PrintDec(mAppSerId, (uint32_t)pIndicationInfo->timestamp);
-                    Serial_Print(mAppSerId, "\r\n", gAllowToBlock_d);
                     
                     bRestartRx = TRUE;
                 } 
@@ -275,77 +256,58 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 /*! *********************************************************************************
 * \brief  Handles the Packet error rate TX test
 ********************************************************************************** */
-bool_t Genfsk_Send(ct_event_t evType, uint16_t u16Data)
+bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message)
 {
 	// static bool_t initialised = false;
     static ct_radio_tx_states_t radioTxState = gRadioTxStateInit_c;
     static uint32_t microSecDelay;
 
-    static uint16_t u16PacketIndex = 0;
+    static uint8_t u8PacketIndex = 0;
     
     uint16_t buffLen = 0;
     bool_t bReturnFromSM = FALSE;
 
-//    if(radioState != 'T') {
-        radioTxState = gRadioTxStateInit_c;
-        microSecDelay = 10000;
+	radioTxState = gRadioTxStateInit_c;
+	microSecDelay = 10000;
 
-        // miliSecDelay *= 1000; /*convert into microseconds*/
+	u8PacketIndex++;
 
-        u16PacketIndex++;
+	gTxPacket.header.lengthField = (uint16_t)gaConfigParams[3].paramValue.decValue;
 
-        gTxPacket.header.lengthField = (uint16_t)gaConfigParams[3].paramValue.decValue;
+	MeshProtocol payload = {
+			nodeID,
+			5,
+			u8PacketIndex,
+			message,
+			gRadioOpcode1,
+			gRadioOpcode2
+	};
 
-        gTxPacket.payload[0] = (u16PacketIndex >> 8);
-        gTxPacket.payload[1] = (uint8_t)u16PacketIndex;
-        gTxPacket.payload[2] = ((u16Data) >> 8);
-        gTxPacket.payload[3] = (uint8_t)(u16Data);
-        gTxPacket.payload[4] = gRadioOpcode1;
-        gTxPacket.payload[5] = gRadioOpcode2;
-        
-        /*pack everything into a buffer*/
-        GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
-        /*calculate buffer length*/
-        buffLen = gTxPacket.header.lengthField+
-                    (gGenFskDefaultHeaderSizeBytes_c)+
-                        (gGenFskDefaultSyncAddrSize_c + 1);
-                
-        /*start tx at current time + input delay*/
-        if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, 0)) {
-            GENFSK_AbortAll();
-            Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
-            radioTxState = gRadioTxStateIdle_c;
-        }
+	gTxPacket.payload = (uint8_t*)&payload;
 
-        Serial_Print(mAppSerId, "\r\n Running RADIO Tx, Number of packets: ", gAllowToBlock_d);
-        Serial_PrintDec(mAppSerId, (uint32_t)u16PacketIndex);
-        
-        radioTxState = gRadioTxStateRunning_c;
-        // initialised = true;
-        radioState = 'T';
-//    }
+	/*pack everything into a buffer*/
+	GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
+	/*calculate buffer length*/
+	buffLen = gTxPacket.header.lengthField+
+				(gGenFskDefaultHeaderSizeBytes_c)+
+					(gGenFskDefaultSyncAddrSize_c + 1);
 
-//     if (radioTxState == gRadioTxStateRunning_c) {
-//         if(gCtEvtTxDone_c == evType) {
-//                 u16PacketIndex++;
-//                 gTxPacket.payload[0] = ((u16PacketIndex) >> 8);
-//                 gTxPacket.payload[1] = (uint8_t)(u16PacketIndex);
-//                 gTxPacket.payload[2] = ((u16Data) >> 8);
-//                 gTxPacket.payload[3] = (uint8_t)(u16Data);
-//                 /*pack everything into a buffer*/
-//                 GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
-//                 /*calculate buffer length*/
-//                 buffLen = gTxPacket.header.lengthField+
-//                     (gGenFskDefaultHeaderSizeBytes_c)+
-//                         (gGenFskDefaultSyncAddrSize_c + 1);
-//
-//                 if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, GENFSK_GetTimestamp() + microSecDelay)) {
-//                     GENFSK_AbortAll();
-//                     Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
-//                     radioTxState = gRadioTxStateIdle_c;
-//                 }
-//         }
-//     }
+	/*start tx at current time + input delay*/
+	if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, 0)) {
+		GENFSK_AbortAll();
+		Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
+		radioTxState = gRadioTxStateIdle_c;
+	}
+
+	Serial_Print(mAppSerId, "\r\n Running RADIO Tx, Number of packets: ", gAllowToBlock_d);
+	Serial_PrintDec(mAppSerId, (uint32_t)u8PacketIndex);
+	Serial_Print(mAppSerId, ", Message: ", gAllowToBlock_d);
+	Serial_PrintDec(mAppSerId, (uint32_t)message);
+	Serial_Print(mAppSerId, ", NodeID: ", gAllowToBlock_d);
+	Serial_PrintDec(mAppSerId, (uint32_t)nodeID);
+
+	radioTxState = gRadioTxStateRunning_c;
+	radioState = 'T';
     
     return bReturnFromSM;      
 }

@@ -87,6 +87,21 @@ typedef struct ct_rx_indication_tag
     uint8_t crcValid;
 }ct_rx_indication_t;
 
+typedef struct {
+	uint8_t nodeID;
+	uint8_t TTL;
+	uint8_t packetID;
+	uint8_t message;
+	uint8_t opcode1;
+	uint8_t opcode2;
+} MeshProtocol;
+
+#define MESHMESSAGE_ACK 0
+#define MESHMESSAGE_PING 1
+#define MESHMESSAGE_LED 2
+#define MESHMESSAGE_IDOK 3
+#define MESHMESSAGE_IDNOTOK 4
+
 typedef void (* pHookAppNotification) ( void );
 typedef void (* pTmrHookNotification) (void*);
 /*! *********************************************************************************
@@ -158,5 +173,5 @@ extern void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc
 /* Genfsk RX handler */
 extern bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue);
 /* Genfsk TX handler */
-extern bool_t Genfsk_Send(ct_event_t evType, uint16_t data);
+extern bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message);
 #endif

@@ -2,6 +2,8 @@
 * Include
 ************************************************************************************/
 
+#define SERVER
+
 /* Drv */
 #include "LED.h"
 
@@ -34,7 +36,7 @@
 /************************************************************************************
 * Private macros
 ************************************************************************************/
-//#define SERVER
+
 #define gAppNumberOfTests_d (1)
 #define App_NotifySelf() OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c)
 
@@ -143,11 +145,11 @@ void main_task(uint32_t param)
         mAppTmrId = TMR_AllocateTimer();
 
         /*register callbacks for the generic fsk LL */
-#ifdef SERVER
-        GENFSK_RegisterCallbacks(mAppGenfskId, radioRXCallback, App_GenFskEventNotificationCallback);
-#else
+//#ifdef SERVER
+//        GENFSK_RegisterCallbacks(mAppGenfskId, radioRXCallback, App_GenFskEventNotificationCallback);
+//#else
         GENFSK_RegisterCallbacks(mAppGenfskId, App_GenFskReceiveCallback, App_GenFskEventNotificationCallback);
-#endif
+//#endif
 
         /*init and provide means to notify the app thread from connectivity tests*/
         GenFskInit(App_NotifyAppThread, App_TimerCallback);
@@ -155,23 +157,20 @@ void main_task(uint32_t param)
 #ifdef SERVER
         initializePpp(mAppSerId, mAppGenfskId);
         waitForPcConnectString();
-        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
 #else
-//        OSA_EventSet(mAppThreadEvt, gCtEvtTxDone_c);
-        Genfsk_Send(gCtEvtSelfEvent_c, 1234);
+        Genfsk_Send(gCtEvtSelfEvent_c, 1234, MESHMESSAGE_ACK);
 #endif
     }
     
     osaEventFlags_t mAppThreadEvtFlags = gCtEvtWakeUp_c;
 
     while(1) {
-//#ifndef SERVER
     	if(mAppThreadEvtFlags) {
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
+    	Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
-//#endif
     }
 }
 
@@ -185,7 +184,8 @@ void App_HandleEvents(osaEventFlags_t flags)
 {
     if(flags & gCtEvtTxDone_c) {
 //        Genfsk_Send(gCtEvtTxDone_c, count);
-        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
+    	Genfsk_Send(gCtEvtSelfEvent_c, 1234, MESHMESSAGE_ACK);
+//        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
 	}
 	if(flags & gCtEvtRxDone_c) {
 		pEvtAssociatedData = &mAppRxLatestPacket;

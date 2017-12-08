@@ -70,16 +70,27 @@ pppType ppp; // our global - definitely not thread safe
 
 int nodeIDs[200];
 int arraySize = 0;
-int addNode(int nodeID);
 char dyn_page[MAX_PAGE_SIZE];
 
 
 int addNode(int nodeID)
 {
-	nodeIDs[arraySize] = nodeID;
-    arraySize = arraySize + 1;
+	bool idOK = true;
+	int i;
+	for (i = 0; i < arraySize; ++i) {
+		if (nodeIDs[i] == nodeID) {
+			idOK = false;
+			break;
+		}
+	}
 
-    return 0;
+	if (idOK) {
+		nodeIDs[arraySize] = nodeID;
+		arraySize = arraySize + 1;
+		return 0;
+	} else {
+		return -1;
+	}
 }
 
 /// Initialize the ppp structure and clear the receive buffer
@@ -489,27 +500,6 @@ void enc64(char * in, char * out, int len)
         } else out[j++] = '=';
     }
     out[j]=0;
-}
-
-void radioRXCallback(uint8_t *pRxBuffer,
-        					uint16_t bufferLength,
-							uint64_t timestamp,
-							uint8_t rssi,
-							uint8_t crcValid)
-{
-	static GENFSK_packet_t gRxPacket;
-	uint16_t u16PacketIndex;
-	uint16_t u16Data;
-	/*map rx buffer to generic fsk packet*/
-	GENFSK_ByteArrayToPacket(genfskId, pRxBuffer, &gRxPacket);
-	if(gRxPacket.payload[4] == gRadioOpcode1 &&
-			gRxPacket.payload[5] == gRadioOpcode2) /* check if packet payload is RADIO type */
-	{
-		u16PacketIndex = ((uint16_t)gRxPacket.payload[0] <<8) + gRxPacket.payload[1];
-	    u16Data = ((uint16_t)gRxPacket.payload[2] <<8) + gRxPacket.payload[3];
-
-	    addNode(u16Data);
-	}
 }
 
 #define TCP_FLAG_ACK (1<<4)
