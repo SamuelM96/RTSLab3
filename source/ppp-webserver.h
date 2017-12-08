@@ -3,6 +3,12 @@
 
 #include "stdint.h"
 
+typedef struct {
+	uint8_t nodeID;
+	uint8_t prevMessageSent;
+	uint8_t prevMessageRec;
+} Node;
+
 void initializePpp(uint8_t serial, uint8_t genfskId);
 int connectedPpp();
 void waitForPcConnectString();
@@ -12,6 +18,9 @@ void sendUdpData();
 //extern void radioRXCallback(uint8_t *pRxBuffer, uint16_t bufferLength, uint64_t timestamp, uint8_t rssi, uint8_t crcValid);
 void pppReceiveHandler();
 int addNode(int nodeID);
+void removeNode(int nodeID);
+Node getNode(int nodeID);
+void setNode(Node node);
 
 /// PPP header
 typedef struct { // [ff 03 00 21]

@@ -3,6 +3,7 @@
 ************************************************************************************/
 
 #define SERVER
+#define NODEID 123
 
 /* Drv */
 #include "LED.h"
@@ -36,7 +37,6 @@
 /************************************************************************************
 * Private macros
 ************************************************************************************/
-
 #define gAppNumberOfTests_d (1)
 #define App_NotifySelf() OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c)
 
@@ -71,6 +71,9 @@ static void App_SerialCallback(void* param);
 static void App_NotifyAppThread(void);
 /*Timer callback*/
 static void App_TimerCallback(void* param);
+
+//void serverProcessPacket(ct_rx_indication_t packet);
+//void nodeProcessPacket(ct_rx_indication_t packet);
 
 /************************************************************************************
 * Private memory declarations
@@ -158,7 +161,7 @@ void main_task(uint32_t param)
         initializePpp(mAppSerId, mAppGenfskId);
         waitForPcConnectString();
 #else
-        Genfsk_Send(gCtEvtSelfEvent_c, 1234, MESHMESSAGE_ACK);
+        Genfsk_Send(gCtEvtSelfEvent_c, NODEID, MESHMESSAGE_ACK);
 #endif
     }
     
@@ -169,7 +172,9 @@ void main_task(uint32_t param)
     		App_HandleEvents(mAppThreadEvtFlags);
     	}
 
+#ifdef SERVER
     	Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
+#endif
     	(void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
     }
 }
@@ -183,12 +188,19 @@ void main_task(uint32_t param)
 void App_HandleEvents(osaEventFlags_t flags)
 {
     if(flags & gCtEvtTxDone_c) {
-//        Genfsk_Send(gCtEvtTxDone_c, count);
-    	Genfsk_Send(gCtEvtSelfEvent_c, 1234, MESHMESSAGE_ACK);
-//        OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c);
+#ifndef SERVER
+    	Genfsk_Send(gCtEvtTxDone_c, NODEID, MESHMESSAGE_ACK);
+#endif
 	}
 	if(flags & gCtEvtRxDone_c) {
 		pEvtAssociatedData = &mAppRxLatestPacket;
+
+//#ifdef SERVER
+//		serverProcessPacket(mAppRxLatestPacket);
+//#else
+//		nodeProcessPacket(mAppRxLatestPacket);
+//#endif
+
 		Genfsk_Receive(gCtEvtRxDone_c, pEvtAssociatedData);
 	}
 
@@ -209,6 +221,54 @@ void App_HandleEvents(osaEventFlags_t flags)
 		Genfsk_Receive(gCtEvtSelfEvent_c, NULL);
 	}
 }
+
+//#ifdef SERVER
+//void serverProcessPacket(ct_rx_indication_t packet) {
+//    static GENFSK_packet_t gRxPacket;
+//
+//    /*map rx buffer to generic fsk packet*/
+//    GENFSK_ByteArrayToPacket(mAppGenfskId, packet.pBuffer, &gRxPacket);
+//    MeshProtocol *payload = (MeshProtocol*)gRxPacket.payload;
+//    if(payload->opcode1 == gRadioOpcode1 && payload->opcode2 == gRadioOpcode2) {
+//
+//        uint8_t u8PacketIndex = payload->packetID;
+//        uint8_t message = payload->message;
+//
+//        if (message == MESHMESSAGE_ACK) {
+//        	if (addNode(payload->nodeID) == -1) {
+//        		// Code here
+//        	}
+//        } else {
+//        	Node node = getNode(payload->nodeID);
+//        	if (message == MESHMESSAGE_PING) {
+//        		Led3Toggle();
+//        		node.prevMessageRec = MESHMESSAGE_PING;
+//        		setNode(node);
+//        	}
+//    	}
+//    }
+//}
+//#else
+//void nodeProcessPacket(ct_rx_indication_t packet) {
+//	static GENFSK_packet_t gRxPacket;
+//
+//	/*map rx buffer to generic fsk packet*/
+//	GENFSK_ByteArrayToPacket(mAppGenfskId, packet.pBuffer, &gRxPacket);
+//	MeshProtocol *payload = (MeshProtocol*)gRxPacket.payload;
+//	if(payload->opcode1 == gRadioOpcode1 && payload->opcode2 == gRadioOpcode2) {
+//
+//		uint8_t u8PacketIndex = payload->packetID;
+//		uint8_t message = payload->message;
+//
+//		if (message == MESHMESSAGE_ACK) {
+//			// Ignore
+//		} else if (message == MESHMESSAGE_PING) {
+//			Led3Toggle();
+//			Genfsk_Send(gCtEvtSelfEvent_c, NODEID, MESHMESSAGE_PING);
+//		}
+//	}
+//}
+//#endif
 
 /*! *********************************************************************************
 * \brief  This function represents the Generic FSK receive callback. 

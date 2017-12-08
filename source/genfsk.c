@@ -27,8 +27,8 @@ ct_config_params_t gaConfigParams[5];
 /*! *********************************************************************************
 * Private macros
 ********************************************************************************** */
-#define gRadioOpcode1 (0xBE)
-#define gRadioOpcode2 (0xEF)
+//#define gRadioOpcode1 (0xBE)
+//#define gRadioOpcode2 (0xEF)
 
 /************************************************************************************
 * Private memory declarations
@@ -213,7 +213,7 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
     	if (gCtEvtRxDone_c == evType) {
                 pIndicationInfo = (ct_rx_indication_t*)pAssociatedValue;
                 pRxBuffer = pIndicationInfo->pBuffer; /*same as gRxBuffer*/
-                
+
                 /*map rx buffer to generic fsk packet*/
                 GENFSK_ByteArrayToPacket(mAppGenfskId, pRxBuffer, &gRxPacket);
                 MeshProtocol *payload = (MeshProtocol*)gRxPacket.payload;
@@ -222,15 +222,21 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 
                     u8PacketIndex = payload->packetID;
                     message = payload->message;
-                    
+
                     if (message == MESHMESSAGE_ACK) {
                     	if (addNode(payload->nodeID) == -1) {
                     		// Code here
                     	}
-                    }
-                    
+                    } else {
+                    	Node node = getNode(payload->nodeID);
+                    	if (message == MESHMESSAGE_PING) {
+                    		node.prevMessageRec = MESHMESSAGE_PING;
+                    		setNode(node);
+                    	}
+                	}
+
                     bRestartRx = TRUE;
-                } 
+                }
                 else
                 {
                     bRestartRx = TRUE;
@@ -239,7 +245,7 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
             else
             {
                 bRestartRx = TRUE;
-            }
+    	}
 
     	/*restart RX immediately with no timeout*/
             if(bRestartRx) {
@@ -259,16 +265,16 @@ bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message)
 {
 	// static bool_t initialised = false;
-    static ct_radio_tx_states_t radioTxState = gRadioTxStateInit_c;
-    static uint32_t microSecDelay;
+//    static ct_radio_tx_states_t radioTxState = gRadioTxStateInit_c;
+//    static uint32_t microSecDelay;
 
     static uint8_t u8PacketIndex = 0;
     
     uint16_t buffLen = 0;
     bool_t bReturnFromSM = FALSE;
 
-	radioTxState = gRadioTxStateInit_c;
-	microSecDelay = 10000;
+//	radioTxState = gRadioTxStateInit_c;
+//	microSecDelay = 10000;
 
 	u8PacketIndex++;
 
@@ -283,7 +289,7 @@ bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message)
 			gRadioOpcode2
 	};
 
-	gTxPacket.payload = (uint8_t*)&payload;
+	memcpy(gTxPacket.payload, &payload, sizeof(payload));
 
 	/*pack everything into a buffer*/
 	GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
@@ -296,17 +302,17 @@ bool_t Genfsk_Send(ct_event_t evType, uint8_t nodeID, uint8_t message)
 	if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, 0)) {
 		GENFSK_AbortAll();
 		Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
-		radioTxState = gRadioTxStateIdle_c;
+//		radioTxState = gRadioTxStateIdle_c;
 	}
 
 	Serial_Print(mAppSerId, "\r\n Running RADIO Tx, Number of packets: ", gAllowToBlock_d);
-	Serial_PrintDec(mAppSerId, (uint32_t)u8PacketIndex);
+	Serial_PrintDec(mAppSerId, (uint32_t)(gTxPacket.payload[2]));
 	Serial_Print(mAppSerId, ", Message: ", gAllowToBlock_d);
-	Serial_PrintDec(mAppSerId, (uint32_t)message);
+	Serial_PrintDec(mAppSerId, (uint32_t)(gTxPacket.payload[3]));
 	Serial_Print(mAppSerId, ", NodeID: ", gAllowToBlock_d);
-	Serial_PrintDec(mAppSerId, (uint32_t)nodeID);
+	Serial_PrintDec(mAppSerId, (uint32_t)(gTxPacket.payload[0]));
 
-	radioTxState = gRadioTxStateRunning_c;
+//	radioTxState = gRadioTxStateRunning_c;
 	radioState = 'T';
     
     return bReturnFromSM;      

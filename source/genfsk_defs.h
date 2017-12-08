@@ -8,6 +8,9 @@
 #ifndef GENFSK_DEFS_H_
 #define GENFSK_DEFS_H_
 
+#define gRadioOpcode1 (0xBE)
+#define gRadioOpcode2 (0xEF)
+
 //#define RX
 #define TX
 

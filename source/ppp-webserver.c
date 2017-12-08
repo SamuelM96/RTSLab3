@@ -36,8 +36,6 @@
 #include "genfsk_interface.h"
 
 #define MAX_PAGE_SIZE 1024
-#define gRadioOpcode1 (0xAB)
-#define gRadioOpcode2 (0xDC)
 
 const static char rootWebPage[] = "\
 <!DOCTYPE html>\
@@ -68,28 +66,73 @@ uint8_t genfskId;
 
 pppType ppp; // our global - definitely not thread safe
 
-int nodeIDs[200];
+Node nodeIDs[200];
 int arraySize = 0;
+int nodeCount = 0;
 char dyn_page[MAX_PAGE_SIZE];
 
 
 int addNode(int nodeID)
 {
 	bool idOK = true;
+	int firstFree = arraySize;
 	int i;
 	for (i = 0; i < arraySize; ++i) {
-		if (nodeIDs[i] == nodeID) {
+		if (nodeIDs[i].nodeID == 0) {
+			firstFree = i;
+			continue;
+		}
+		if (nodeIDs[i].nodeID == nodeID) {
 			idOK = false;
 			break;
 		}
 	}
 
 	if (idOK) {
-		nodeIDs[arraySize] = nodeID;
-		arraySize = arraySize + 1;
+		Node node = {
+				nodeID,
+				MESHMESSAGE_ACK
+		};
+		nodeIDs[firstFree] = node;
+		nodeCount++;
+		if (firstFree == arraySize) {
+			arraySize++;
+		}
 		return 0;
 	} else {
 		return -1;
+	}
+}
+
+void removeNode(int nodeID) {
+	int i;
+	for (i = 0; i < arraySize; ++i) {
+		if (nodeIDs[i].nodeID == nodeID) {
+			nodeIDs[i].nodeID = 0;
+			nodeCount--;
+			break;
+		}
+	}
+}
+
+Node getNode(int nodeID) {
+	int i;
+	for(i = 0; i < arraySize; i++) {
+		if (nodeIDs[i].nodeID == nodeID) {
+			return nodeIDs[i];
+		}
+	}
+
+	Node node;
+	return node;
+}
+
+void setNode(Node node) {
+	int i;
+	for(i = 0; i < arraySize; i++) {
+		if (nodeIDs[i].nodeID == node.nodeID) {
+			nodeIDs[i] = node;
+		}
 	}
 }
 
@@ -513,9 +556,14 @@ void generatePage() {
 	strcpy(dyn_page, "<html><head><title>A simple Web Server</title></head><body><form method=\"post\">");
 	int i;
 	for (i = 0; i < arraySize; i++) {
-		int someInt = nodeIDs[i];
+		if (nodeIDs[i].nodeID == 0) {
+			continue;
+		}
+
+		int nodeID = nodeIDs[i].nodeID;
+
 	    char str[12];
-	    sprintf(str, "%d", someInt);
+	    sprintf(str, "%d", nodeID);
 
 	    strcat(dyn_page, "<button name=\"nodeButton\"");
 	    strcat(dyn_page, " value=\"");
@@ -558,31 +606,19 @@ int httpResponse(char * dataStart, int * flags)
     nHeader=n; // size of HTTP header
     
     if( httpGetRoot == 0 ) {
-//    	static int node = 0;
-//        addNode(node++);
-
         generatePage();
         memcpy(n+dataStart, dyn_page, sizeof(dyn_page));
         n = n + sizeof(dyn_page)-1;
-//        memcpy(n+dataStart,rootWebPage,sizeof(rootWebPage));
-//        n = n + sizeof(rootWebPage)-1;
     } else if (httpPostRoot == 0) {
-//    	if (httpGet5 == 't') {
-//        	// Toggle led
-////        	static uint16_t ledState = 0;
-////
-////        	ledState = ledState ? 0 : 1;
-////        	Genfsk_Send(gCtEvtTxDone_c, ledState);
-////        	Led3Toggle();
-//    	}
-    	char nodeID[16];
+    	char nodeID[3];
     	if (!(httpPostParamStart == NULL || httpPostParamEnd == NULL)) {
     		int len = httpPostParamEnd - (httpPostParamStart+11);
-//    		len++;
     		memcpy(nodeID, httpPostParamStart+11, len);
-    		uint16_t u16NodeID = nodeID - '0';
+    		uint8_t u8NodeID = nodeID - '0';
 
+    		Genfsk_Send(0, u8NodeID, MESHMESSAGE_PING);
     	}
+
     	// Insert radio code here
 
     	generatePage();
